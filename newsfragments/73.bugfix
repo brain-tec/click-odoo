@@ -1,3 +1,1 @@
-Allow to execute a valid sys.path entry.
-click-odoo is using runpy.run_path(path_name, ...) function.
-path_name can be a file, but can be also a folder, in the case we want to import a syst.path entry, containing a __main__.py file.
+Accept a directory containing a ``__main__.py`` as script.
