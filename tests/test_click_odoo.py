@@ -18,10 +18,11 @@ from click_odoo.cli import main
 
 here = os.path.abspath(os.path.dirname(__file__))
 
-# This hack is necessary because the way CliRunner patches
-# stdout is not compatible with the Odoo logging initialization
-# mechanism. Logging is therefore tested with subprocesses.
-odoo.netsvc.init_logger = lambda: None
+if odoo.release.version_info < (20, 0):
+    # This hack is necessary because the way CliRunner patches
+    # stdout is not compatible with the Odoo logging initialization
+    # mechanism. Logging is therefore tested with subprocesses.
+    odoo.netsvc.init_logger = lambda: None
 
 
 def _init_odoo_db(dbname):
