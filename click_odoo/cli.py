@@ -35,7 +35,7 @@ _logger = logging.getLogger(__name__)
     "values are ipython, ptpython, bpython, python. If not "
     "provided they are tried in this order.",
 )
-@click.argument("script", required=False, type=click.Path(exists=True, dir_okay=False))
+@click.argument("script", required=False, type=click.Path(exists=True))
 @click.argument("script-args", nargs=-1)
 def main(env, interactive, shell_interface, script, script_args):
     global_vars = {"env": env}

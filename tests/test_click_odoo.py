@@ -11,17 +11,22 @@ import click
 import psycopg2
 import pytest
 from click.testing import CliRunner
+from odoo import netsvc
 
 import click_odoo
 from click_odoo import OdooEnvironment, console, odoo, odoo_bin
 from click_odoo.cli import main
 
+from .compat import get_param, set_param
+
 here = os.path.abspath(os.path.dirname(__file__))
 
 # This hack is necessary because the way CliRunner patches
 # stdout is not compatible with the Odoo logging initialization
-# mechanism. Logging is therefore tested with subprocesses.
-odoo.netsvc._logger_init = True
+# mechanism (the stream has no fileno).
+# Logging is therefore tested with subprocesses.
+netsvc.init_logger = lambda: None
+os.environ["NO_COLOR"] = "1"
 
 
 def _init_odoo_db(dbname):
@@ -94,9 +99,7 @@ def test_click_odoo_args(odoodb):
         """\
         sys.argv = {} a -b -d
         __name__ = __main__
-    """.format(
-            script
-        )
+        """.format(script)
     )
 
 
@@ -117,9 +120,7 @@ def test_click_odoo_shebang_args(odoodb):
         """\
         sys.argv = {} a -b -d
         __name__ = __main__
-    """.format(
-            script
-        )
+    """.format(script)
     )
 
 
@@ -188,9 +189,7 @@ def test_env_options_withdb(odoodb, tmpdir):
             """\
         [options]
         db_name={}
-    """.format(
-                odoodb
-            )
+    """.format(odoodb)
         )
     )
     result = runner.invoke(testcmd, ["-c", str(odoocfg1)])
@@ -216,9 +215,7 @@ def test_env_options_withdb(odoodb, tmpdir):
             """\
         [options]
         db_name={},notadb
-    """.format(
-                odoodb
-            )
+    """.format(odoodb)
         )
     )
     result = runner.invoke(testcmd, ["-c", str(odoocfg3)])
@@ -246,7 +243,10 @@ def test_env_options_nodb(odoodb, tmpdir):
     # -d not allowed
     result = runner.invoke(testcmd, ["-d", odoodb])
     assert result.exit_code != 0
-    assert "no such option: -d" in result.output.lower()
+    assert (
+        "no such option: -d" in result.output.lower()
+        or "no such option '-d'" in result.output.lower()
+    )
     # db_name in config ignored
     odoocfg1 = tmpdir / "odoo1.cfg"
     odoocfg1.write(
@@ -254,9 +254,7 @@ def test_env_options_nodb(odoodb, tmpdir):
             """\
         [options]
         db_name={}
-    """.format(
-                odoodb
-            )
+    """.format(odoodb)
         )
     )
     result = runner.invoke(testcmd, ["-c", str(odoocfg1)])
@@ -289,9 +287,7 @@ def test_env_options_optionaldb(odoodb, tmpdir):
             """\
         [options]
         db_name={}
-    """.format(
-                odoodb
-            )
+    """.format(odoodb)
         )
     )
     result = runner.invoke(testcmd, ["-c", str(odoocfg1)])
@@ -324,7 +320,7 @@ def test_env_options_database_must_exist(odoodb):
 def _cleanup_testparam(dbname):
     with psycopg2.connect(dbname=dbname) as conn:
         with conn.cursor() as cr:
-            cr.execute("DELETE FROM ir_config_parameter " "WHERE key='testparam'")
+            cr.execute("DELETE FROM ir_config_parameter WHERE key='testparam'")
             conn.commit()
     conn.close()
 
@@ -332,7 +328,7 @@ def _cleanup_testparam(dbname):
 def _assert_testparam_present(dbname, expected):
     with psycopg2.connect(dbname=dbname) as conn:
         with conn.cursor() as cr:
-            cr.execute("SELECT value FROM ir_config_parameter " "WHERE key='testparam'")
+            cr.execute("SELECT value FROM ir_config_parameter WHERE key='testparam'")
             r = cr.fetchall()
             assert len(r) == 1
             assert r[0][0] == expected
@@ -342,7 +338,7 @@ def _assert_testparam_present(dbname, expected):
 def _assert_testparam_absent(dbname):
     with psycopg2.connect(dbname=dbname) as conn:
         with conn.cursor() as cr:
-            cr.execute("SELECT value FROM ir_config_parameter " "WHERE key='testparam'")
+            cr.execute("SELECT value FROM ir_config_parameter WHERE key='testparam'")
             r = cr.fetchall()
             assert len(r) == 0
     conn.close()
@@ -416,15 +412,15 @@ def test_env_cache(odoodb):
     """test a new environment does not reuse cache"""
     _cleanup_testparam(odoodb)
     with OdooEnvironment(database=odoodb) as env:
-        env["ir.config_parameter"].set_param("testparam", "testvalue")
-        value = env["ir.config_parameter"].get_param("testparam")
+        set_param(env, "testparam", "testvalue")
+        value = get_param(env, "testparam")
         assert value == "testvalue"
         env.cr.commit()
     _assert_testparam_present(odoodb, "testvalue")
     _cleanup_testparam(odoodb)
     _assert_testparam_absent(odoodb)
     with OdooEnvironment(database=odoodb) as env:
-        value = env["ir.config_parameter"].get_param("testparam")
+        value = get_param(env, "testparam")
         assert not value
 
 
